@@ -97,19 +97,29 @@ function cleanTerminalOutput(chunk) {
   return chunk.replace(ANSI_ESCAPE, "").replace(/\r\n/g, "\n");
 }
 function activate(context) {
-  const output = vscode.window.createOutputChannel("Terminal Output Clipboard");
+  const output = vscode.window.createOutputChannel(
+    "Terminal Output Clipboard"
+  );
   const status = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
     100
   );
+  function showEmpty() {
+    status.text = "$(circle-slash) No output captured";
+    status.tooltip = "No terminal output has been captured yet";
+  }
+  function showCollecting() {
+    status.text = "$(sync~spin) Collecting output...";
+    status.tooltip = "Collecting terminal output. The batch becomes ready after 10 seconds of inactivity.";
+  }
+  function showReady() {
+    status.text = "$(clippy) Output ready \u2014 Copy";
+    status.tooltip = "Latest terminal output is ready. Click to copy, or press Ctrl+Alt+C.";
+  }
   status.command = "terminalOutputClipboard.copyLatest";
-  status.text = "$(clippy) Copy Terminal Output";
-  status.tooltip = "Copy the latest captured terminal output";
+  showEmpty();
   status.show();
-  const buffer = new OutputBuffer(1e4, () => {
-    status.text = "$(clippy) Copy Terminal Output";
-    status.tooltip = "A terminal output batch is ready to copy";
-  });
+  const buffer = new OutputBuffer(1e4, showReady);
   context.subscriptions.push(
     output,
     status,
@@ -120,25 +130,35 @@ function activate(context) {
         buffer.flush();
         const text = buffer.latestBatch;
         if (!text) {
+          showEmpty();
           void vscode.window.showInformationMessage(
             "No terminal output has been captured yet."
           );
           return;
         }
-        await vscode.env.clipboard.writeText(text);
+        try {
+          await vscode.env.clipboard.writeText(text);
+          showReady();
+          void vscode.window.showInformationMessage(
+            "Latest terminal output copied to clipboard."
+          );
+        } catch (error) {
+          void vscode.window.showErrorMessage(
+            `Could not copy terminal output: ${String(error)}`
+          );
+        }
+      }
+    ),
+    vscode.commands.registerCommand(
+      "terminalOutputClipboard.clear",
+      () => {
+        buffer.clear();
+        showEmpty();
         void vscode.window.showInformationMessage(
-          "Latest terminal output copied to clipboard."
+          "Terminal output buffer cleared."
         );
       }
     ),
-    vscode.commands.registerCommand("terminalOutputClipboard.clear", () => {
-      buffer.clear();
-      status.text = "$(clippy) Copy Terminal Output";
-      status.tooltip = "Terminal output buffer cleared";
-      void vscode.window.showInformationMessage(
-        "Terminal output buffer cleared."
-      );
-    }),
     vscode.window.onDidStartTerminalShellExecution((event) => {
       const stream = event.execution.read();
       void (async () => {
@@ -146,12 +166,15 @@ function activate(context) {
           for await (const chunk of stream) {
             const cleaned = cleanTerminalOutput(chunk);
             if (cleaned) {
+              showCollecting();
               buffer.append(cleaned);
               output.append(cleaned);
             }
           }
         } catch (error) {
-          output.appendLine(`Unable to read terminal output: ${String(error)}`);
+          output.appendLine(
+            `Unable to read terminal output: ${String(error)}`
+          );
         }
       })();
     })

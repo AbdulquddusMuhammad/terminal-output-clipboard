@@ -15,18 +15,27 @@
     "activationEvents": [
         "onStartupFinished"
     ],
+
     "contributes": {
-        "commands": [
-            {
-                "command": "terminalOutputClipboard.copyLatest",
-                "title": "Terminal Output Clipboard: Copy Latest"
-            },
-            {
-                "command": "terminalOutputClipboard.clear",
-                "title": "Terminal Output Clipboard: Clear Buffer"
-            }
-        ]
+    "commands": [
+        {
+        "command": "terminalOutputClipboard.copyLatest",
+        "title": "Terminal Output Clipboard: Copy Latest"
+        },
+        {
+        "command": "terminalOutputClipboard.clear",
+        "title": "Terminal Output Clipboard: Clear Buffer"
+        }
+    ],
+    "keybindings": [
+        {
+        "command": "terminalOutputClipboard.copyLatest",
+        "key": "ctrl+alt+c",
+        "mac": "cmd+alt+c"
+        }
+    ]
     },
+
     "scripts": {
         "compile": "tsc -p . && esbuild src/extension.ts --bundle --platform=node --external:vscode --outfile=dist/extension.js",
         "check-types": "tsc -p . --noEmit",
